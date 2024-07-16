@@ -1,77 +1,88 @@
 #include <iostream>
+#include <vector>
+#include <utility>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 using namespace std;
 #define WIN32_LEAN_AND_MEAN
+
+#include <stdio.h>
 #include <Windows.h>
-#include <cmath>
-#include <chrono>
-#include <vector>
-#include <algorithm>
 
 
 int nScreenWidth = 120;
 int nScreenHeight = 40;
+int nMapHeight = 16;
+int nMapWidth = 16;
 
 float fPlayerX = 8.0f;
 float fPlayerY = 8.0f;
 float fPlayerA = 0.0f;
-
-int nMapHeight = 16;
-int nMapWidth = 16;
-
-float fFOV = 3.14159 / 4.0;
+float fFOV = 3.14159f / 4.0f;
 float fDepth = 16.0f;
-
-auto tp1 = chrono::system_clock::now();
-auto tp2 = chrono::system_clock::now();
-
+float fSpeed = 5.0f;
 
 int main()
 {
     wchar_t *screen = new wchar_t[nScreenWidth*nScreenHeight];
-    HANDLE hConsole =  CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
+    HANDLE hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
     SetConsoleActiveScreenBuffer(hConsole);
     DWORD dwBytesWritten = 0;
 
     wstring map;
-    map += L"################";
-    map += L"#...#..........#";
-    map += L"#...#....#.....#";
-    map += L"#...###..#.....#";
-    map += L"#........#.....#";
-    map += L"##########.....#";
-    map += L"#..............#";
-    map += L"#..##########..#";
-    map += L"#..#....#......#";
-    map += L"#..#....#...#..#";
-    map += L"#..#....#...#..#";
-    map += L"#..#........#..#";
-    map += L"#..#....########";
-    map += L"#..###.........#";
-    map += L"#....#.........#";
-    map += L"################";
+	map += L"#########.......";
+	map += L"#...............";
+	map += L"#.......########";
+	map += L"#..............#";
+	map += L"#......##......#";
+	map += L"#......##......#";
+	map += L"#..............#";
+	map += L"###............#";
+	map += L"##.............#";
+	map += L"#......####..###";
+	map += L"#......#.......#";
+	map += L"#......#.......#";
+	map += L"#..............#";
+	map += L"#......#########";
+	map += L"#..............#";
+	map += L"################";
+
+    auto tp1 = chrono::system_clock::now();
+    auto tp2 = chrono::system_clock::now();
 
     while(1)
     {
         tp2 = chrono::system_clock::now();
-        chrono::duration<float> elapseTime = tp2-tp1;
+        chrono::duration<float> elapsedTime = tp2-tp1;
         tp1 = tp2;
-        float fElapsedTime = elapseTime.count();
+        float fElapsedTime = elapsedTime.count();
 
 
         if (GetAsyncKeyState((unsigned short)'A') & 0x8000)
-            fPlayerA -= (0.8f) * fElapsedTime;
+            fPlayerA -= (fSpeed * 0.8f) * fElapsedTime;
         if (GetAsyncKeyState((unsigned short)'D') & 0x8000)
-            fPlayerA += (0.8f) * fElapsedTime;
+            fPlayerA += (fSpeed * 0.8f) * fElapsedTime;
 
         if (GetAsyncKeyState((unsigned short)'W') & 0x8000)
         {
             fPlayerX += sinf(fPlayerA) * 5.0f * fElapsedTime;
             fPlayerY += cosf(fPlayerA) * 5.0f * fElapsedTime;
+            if(map.c_str()[(int)fPlayerX * nMapWidth + (int)fPlayerY] == '#')
+            {
+                fPlayerX -= sinf(fPlayerA) * 5.0f * fElapsedTime;
+                fPlayerY -= cosf(fPlayerA) * 5.0f * fElapsedTime;
+            }
         }
         if (GetAsyncKeyState((unsigned short)'S') & 0x8000)
         {
             fPlayerX -= sinf(fPlayerA) * 5.0f * fElapsedTime;
             fPlayerY -= cosf(fPlayerA) * 5.0f * fElapsedTime;
+            if(map.c_str()[(int)fPlayerX * nMapWidth + (int)fPlayerY] == '#')
+            {
+                fPlayerX += sinf(fPlayerA) * 5.0f * fElapsedTime;
+                fPlayerY += cosf(fPlayerA) * 5.0f * fElapsedTime;
+            }
         }
 
         for(int x=0; x < nScreenWidth; x++)
@@ -84,7 +95,7 @@ int main()
 
             float fEyeX = sinf(fRayAngle);
             float fEyeY = cosf(fRayAngle);
-            while(!bHitWall )
+            while(!bHitWall && fDistanceToWall < fDepth)
             {
                 fDistanceToWall += 0.1f;
                 int nTestX = (int)(fPlayerX + fEyeX * fDistanceToWall);
@@ -96,7 +107,7 @@ int main()
                 }
                 else
                 {
-                    if (map[nTestY * nMapWidth + nTestX] == '#')
+                    if (map.c_str()[nTestX * nMapWidth + nTestY] == '#')
                     {
                         bHitWall = true;
                         
@@ -116,6 +127,7 @@ int main()
                             float fBound = 0.01;
                             if (acos(p.at(0).second) < fBound) bBoundary = true;
                             if (acos(p.at(1).second) < fBound) bBoundary = true;
+                            //if (acos(p.at(2).second) < fBound) bBoundary = true;
                         }
 
                     }
@@ -126,7 +138,6 @@ int main()
             int nFloor = nScreenHeight - nCeiling;
 
             short nShade = ' ';
-            short nShadef = ' ';
 
             if (fDistanceToWall <= fDepth / 4.0f)            nShade = 0x2588;
             else if (fDistanceToWall <= fDepth / 3.0f)       nShade = 0x2593;
@@ -138,23 +149,26 @@ int main()
 
             for(int y=0; y < nScreenHeight; y++)
             {
-                if(y < nCeiling)
-                    screen[y*nScreenWidth + x] = '-';
+                if(y <= nCeiling)
+                    screen[y*nScreenWidth + x] = ' ';
                 else if(y >nCeiling && y <= nFloor)
                     screen[y * nScreenWidth + x] = nShade;
                 else
                 {
                     float b = 1.0f - (((float)y - nScreenHeight / 2.0f) / ((float)nScreenHeight / 2.0f));
-                    if (b < 0.25)                   nShadef = '#';
-                    else if (b < 0.5)               nShadef = 'X';
-                    else if (b < 0.75)              nShadef = '.';
-                    else if (b < 0.9)               nShadef = '-';
-                    else                            nShadef = ' ';
-                    screen[y * nScreenWidth + x] = nShadef;
+                    if (b < 0.25)                   nShade = '#';
+                    else if (b < 0.5)               nShade = 'X';
+                    else if (b < 0.75)              nShade = '.';
+                    else if (b < 0.9)               nShade = '-';
+                    else                            nShade = ' ';
+                    screen[y * nScreenWidth + x] = nShade;
                 }
             }
 
         }
+
+        swprintf_s(screen, 40, L"X=%3.2f, Y=%3.2f, A=%3.2f FPS=%3.2f ", fPlayerX, fPlayerY, fPlayerA, 1.0f/fElapsedTime);
+
         for (int nx = 0; nx < nMapWidth; nx++)
         {
             for(int ny = 0; ny < nMapHeight; ny++)
